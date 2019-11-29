@@ -1,0 +1,36 @@
+#!/usr/bin/env ruby
+
+require 'csv'
+require 'pry'
+
+csv_file_path = ARGV[0]
+dir_path = ARGV[1]
+
+csv_file = CSV.read(csv_file_path, headers: true)
+
+Dir.chdir(dir_path)
+csv_file.by_row.each do |row|
+	next if row['check_command'].to_s.size < 4
+	
+	check_result = `#{row['check_command']}`
+	if check_result.length > 0
+		row['check_result_count'] = check_result.lines.count
+
+		File.write('/tmp/check_command_output.txt', check_result)
+		description = "check results for " + row['title'].gsub("`", "'").gsub('"', "'")
+		puts "found #{row['check_result_count']} instances of #{description}"
+		min_score = (row['min_score_per'] || 1).to_i * row['check_result_count']
+		max_score = (row['max_score_per'] || 2).to_i * row['check_result_count']
+		row['sum_result_score_range'] = "#{min_score}-#{max_score}"
+		row['check_result_url'] = `gist --shorten --private --description "#{description}" /tmp/check_command_output.txt`
+	else
+		row['check_result_count'] = 0
+	end
+	
+end
+
+CSV.open(csv_file_path, 'w') do |csv_object|
+  csv_file.to_a.each do |row_array|
+    csv_object << row_array
+  end
+end
